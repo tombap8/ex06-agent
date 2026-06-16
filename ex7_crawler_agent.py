@@ -1,3 +1,4 @@
+import re
 import asyncio
 import aiohttp
 import streamlit as st
@@ -46,7 +47,11 @@ def get_target_urls(topic: str, count: int = 5):
     (실제 존재하는 뉴스 포털이나 언론사의 형태를 띤 URL이어야 합니다.)
     """
     response = llm_call(prompt, model="gpt-4o")
-    urls = [line.strip() for line in response.strip().split('\n') if line.strip().startswith('http')]
+    
+    # 정규표현식을 사용하여 텍스트에서 URL만 강건하게 추출합니다.
+    urls = re.findall(r'https?://[^\s"\'<>]+', response)
+    # 중복 제거 및 요청한 개수만큼 자르기
+    urls = list(dict.fromkeys(urls))[:count]
     
     # 만약 LLM이 포맷을 안 지켰을 경우를 대비한 안전 장치
     if not urls:
