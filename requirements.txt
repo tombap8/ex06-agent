@@ -1,3 +1,8 @@
+aiohttp
+beautifulsoup4
+streamlit
+openai
+python-dotenv
 google-genai
 python-dotenv
 openai
