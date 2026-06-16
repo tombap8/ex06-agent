@@ -1,5 +1,6 @@
 from utils import llm_call
 
+# 라우터 프롬프트를 생성하여, 사용자 질문에 가장 적합한 모델을 선택하도록 하는 함수입니다.
 def run_router_workflow(user_prompt : str):
     router_prompt = f"""
     사용자의 프롬프트/질문: {user_prompt}
@@ -12,10 +13,13 @@ def run_router_workflow(user_prompt : str):
     모델명만 단답형으로 응답하세요
     """
     print(router_prompt)
+    # 라우터 프롬프트를 LLM에 전달하여 가장 적합한 모델을 선택하도록 합니다.
     selected_model = llm_call(router_prompt)
     print("선택한 모델", selected_model)
+    # 선택된 모델을 사용하여 원래 사용자 프롬프트에 대한 응답을 생성합니다.
     response = llm_call(user_prompt, model = selected_model)
     print(response)
+    # 최종적으로 생성된 응답을 반환합니다.
     return response
 
 query1 = "1더하기 2는 뭐지?"
