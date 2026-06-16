@@ -1,5 +1,6 @@
 from utils import llm_call
 
+# 평가자(Evaluator) - 최적화자(Optimizer/Generator) 패턴을 구현한 반복(Loop) 워크플로우 함수
 def loop_workflow(user_query, evaluator_prompt, max_retries=5) -> str:
     """평가자가 생성된 요약을 통과할 때까지 최대 max_retries번 반복."""
 
@@ -8,11 +9,17 @@ def loop_workflow(user_query, evaluator_prompt, max_retries=5) -> str:
         print(f"\n========== 📝 요약 프롬프트 (시도 {retries + 1}/{max_retries}) ==========\n")
         print(user_query)
         
+        # 1. 최적화자(Generator): 사용자의 요청(및 이전 피드백)을 바탕으로 초안(요약본)을 생성합니다.
+        # 빠르고 저렴한 모델(gpt-4o-mini)을 사용하여 1차 작업을 수행합니다.
         summary = llm_call(user_query, model="gpt-4o-mini")
         print(f"\n========== 📝 요약 결과 (시도 {retries + 1}/{max_retries}) ==========\n")
         print(summary)
         
+        # 2. 평가자(Evaluator) 프롬프트 준비: 생성된 초안을 평가 기준과 함께 합칩니다.
         final_evaluator_prompt = evaluator_prompt + summary
+        
+        # 3. 평가자(Evaluator): 생성된 초안이 기준에 맞는지 검토하고 피드백을 제공합니다.
+        # 정확한 판단과 정교한 검토를 위해 성능이 좋은 모델(gpt-4o)을 사용합니다.
         evaluation_result = llm_call(final_evaluator_prompt, model="gpt-4o").strip()
 
         print(f"\n========== 🔍 평가 프롬프트 (시도 {retries + 1}/{max_retries}) ==========\n")
@@ -21,6 +28,7 @@ def loop_workflow(user_query, evaluator_prompt, max_retries=5) -> str:
         print(f"\n========== 🔍 평가 결과 (시도 {retries + 1}/{max_retries}) ==========\n")
         print(evaluation_result)
 
+        # 4. 종료 조건 검사: 평가 결과가 'PASS' 이면 만족스러운 결과로 간주하고 반복을 종료합니다.
         if "평가결과 = PASS" in evaluation_result:
             print("\n✅ 통과! 최종 요약이 승인되었습니다.\n")
             return summary
@@ -28,12 +36,14 @@ def loop_workflow(user_query, evaluator_prompt, max_retries=5) -> str:
         retries += 1
         print(f"\n🔄 재시도 필요... ({retries}/{max_retries})\n")
 
-        # If max retries reached, return last attempt
+        # 최대 재시도 횟수에 도달하면, 완벽하지 않더라도 마지막으로 생성된 요약을 반환하고 종료합니다.
         if retries >= max_retries:
             print("❌ 최대 재시도 횟수 도달. 마지막 요약을 반환합니다.")
-            return summary  # Returning the last attempted summary, even if it's not perfect.
+            return summary  
 
-        # Updating the user_query for the next attempt with full history
+        # 5. 피드백 반영(Feedback Loop): 실패한 경우, 다음 시도를 위해 이전 요약본과 평가자의 피드백을 
+        # 사용자 프롬프트(user_query)의 꼬리말에 추가합니다. 
+        # 이를 통해 Generator는 이전의 실수를 반복하지 않고 점진적으로 개선된 결과를 생성하게 됩니다.
         user_query += f"{retries}차 요약 결과:\n\n{summary}\n"
         user_query += f"{retries}차 요약 피드백:\n\n{evaluation_result}\n\n"
 
@@ -51,6 +61,8 @@ def main():
 샘 알트먼 CEO는 "이후 공개될 'GPT-5'부터는 추론 모델인 'o'시리즈와 'GPT'를 통합하겠다"며 "모델과 제품라인이 복잡해졌음을 잘 알고 있고, 앞으로는 각 모델을 선택해 사용하기보다 그저 잘 작동하길 원한다"고 말했다.
     """
     
+    # Optimizer(Generator)에게 주어지는 기본 지시사항입니다. 
+    # 피드백이 누적될 수 있도록 유도하는 문구가 포함되어 있습니다.
     user_query = f"""
 당신의 목표는 주어진 기사를 요약하는 것입니다. 
 아래 주어진 기사 내용을 요약해주세요.
@@ -60,6 +72,8 @@ def main():
 {input_article}
     """
     
+    # Evaluator(평가자)가 사용할 엄격한 평가 기준입니다.
+    # LLM이 평가의 일관성을 가질 수 있도록 명확한 기준(핵심 내용, 정확성, 간결성 등)과 포맷을 제공합니다.
     evaluator_prompt = """
 다음 요약을 평가하십시오:
 
@@ -99,3 +113,40 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+'''
+=============================================================================
+[ Evaluator-Optimizer Pattern Workflow Diagram ]
+=============================================================================
+
+            [ User Query + Context ]
+                      │
+   +------------------+<-----------------------------+
+   │                                                 │
+   ▼                                                 │
++------------------------------------+               │
+│         1. Generator               │               │
+│ (Creates initial/revised summary)  │               │
+│        * Model: gpt-4o-mini        │               │
++------------------------------------+               │
+   │                                                 │
+   │ (Generated Output)                              │
+   ▼                                                 │
++------------------------------------+               │
+│         2. Evaluator               │               │
+│ (Checks output against criteria)   │               │
+│        * Model: gpt-4o             │               │
++------------------------------------+               │
+   │                                                 │
+   │       +-------------------+                     │
+   +------►│ Evaluator Checks  │                     │
+           │ Output == 'PASS'? ├----[ NO ]-----------+
+           +-------------------+    (Append Feedback 
+                     │               to prompt and 
+                  [ YES ]            retry loop)
+                     │
+                     ▼
+             [ Final Summary ]
+
+=============================================================================
+'''
