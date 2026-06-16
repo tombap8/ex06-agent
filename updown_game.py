@@ -1,119 +1,145 @@
+import streamlit as st
 import random
-# from utils import llm_call  # (선택) AI 에이전트의 추가 피드백이 필요할 경우 사용할 수 있습니다.
 
-# [FR-01] 정답 생성 기능
-def generate_answer() -> int:
-    """1~100 사이의 임의의 숫자를 생성하여 반환합니다."""
-    return random.randint(1, 100)
+# 페이지 설정
+st.set_page_config(
+    page_title="스펙타클 업다운 게임",
+    page_icon="🎮",
+    layout="centered"
+)
 
-# [FR-02] 입력 검증 기능
-def validate_input(user_input: str) -> tuple[bool, int]:
-    """
-    사용자 입력을 검증합니다.
-    (유효성 여부, 파싱된 숫자)를 반환합니다.
-    """
-    try:
-        num = int(user_input)
-        if 1 <= num <= 100:
-            return True, num
-        else:
-            return False, -1
-    except ValueError:
-        return False, -1
+# 커스텀 CSS로 화려하게
+st.markdown("""
+<style>
+    .big-title {
+        font-size: 3rem;
+        color: #ff4b4b;
+        text-align: center;
+        font-weight: 900;
+        text-shadow: 2px 2px 4px #00000055;
+        margin-bottom: 0px;
+    }
+    .sub-title {
+        font-size: 1.2rem;
+        color: #fca311;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    .range-box {
+        background: linear-gradient(90deg, #1cb5e0 0%, #000851 100%);
+        padding: 20px;
+        border-radius: 15px;
+        color: white;
+        text-align: center;
+        font-size: 1.5rem;
+        font-weight: bold;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    .history-card {
+        background-color: #f0f2f6;
+        padding: 10px;
+        border-radius: 10px;
+        margin-top: 10px;
+        border-left: 5px solid #ff4b4b;
+        color: black;
+    }
+    @media (prefers-color-scheme: dark) {
+        .history-card {
+            background-color: #2b2b2b;
+            color: white;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# [FR-03] 업/다운 판정 기능
-def judge_guess(guess: int, answer: int) -> str:
-    """입력값과 정답을 비교하여 힌트 메시지를 반환합니다."""
-    if guess < answer:
-        return "UP!\n더 큰 숫자입니다."
-    elif guess > answer:
-        return "DOWN!\n더 작은 숫자입니다."
+# 세션 상태 초기화
+if 'answer' not in st.session_state:
+    st.session_state.answer = random.randint(1, 100)
+    st.session_state.attempts = 0
+    st.session_state.max_attempts = 5
+    st.session_state.min_range = 1
+    st.session_state.max_range = 100
+    st.session_state.game_over = False
+    st.session_state.history = []
+    st.session_state.best_score = None
+
+def reset_game():
+    st.session_state.answer = random.randint(1, 100)
+    st.session_state.attempts = 0
+    st.session_state.min_range = 1
+    st.session_state.max_range = 100
+    st.session_state.game_over = False
+    st.session_state.history = []
+
+# 헤더
+st.markdown('<div class="big-title">🚀 업다운 게임 🚀</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">1부터 100 사이의 숫자를 맞춰보세요! 기회는 단 5번!</div>', unsafe_allow_html=True)
+
+# 메트릭스 패널
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric("🏆 최고 기록", f"{st.session_state.best_score}회" if st.session_state.best_score else "없음")
+with col2:
+    st.metric("🎯 남은 기회", f"{st.session_state.max_attempts - st.session_state.attempts}회")
+with col3:
+    st.metric("📈 현재 범위", f"{st.session_state.min_range} ~ {st.session_state.max_range}")
+
+# 진행률 바
+progress = st.session_state.attempts / st.session_state.max_attempts
+st.progress(progress, text=f"진행 상황: {st.session_state.attempts} / {st.session_state.max_attempts}")
+
+st.markdown('<div class="range-box">🔍 탐색 범위: {} ~ {} </div>'.format(st.session_state.min_range, st.session_state.max_range), unsafe_allow_html=True)
+st.write("")
+
+# 입력 폼
+if not st.session_state.game_over:
+    with st.form("guess_form"):
+        guess = st.number_input("숫자를 입력하세요 (1~100):", min_value=1, max_value=100, step=1, value=st.session_state.min_range)
+        submitted = st.form_submit_button("도전! 🎯", use_container_width=True)
+        
+        if submitted:
+            if guess < st.session_state.min_range or guess > st.session_state.max_range:
+                st.warning("⚠️ 현재 범위 안의 숫자를 입력하는 것이 좋습니다!")
+                
+            st.session_state.attempts += 1
+            
+            if guess == st.session_state.answer:
+                st.session_state.history.append((guess, "🎉 정답!"))
+                st.session_state.game_over = True
+                
+                # 최고 기록 갱신
+                if st.session_state.best_score is None or st.session_state.attempts < st.session_state.best_score:
+                    st.session_state.best_score = st.session_state.attempts
+                    
+            elif guess < st.session_state.answer:
+                st.session_state.history.append((guess, "🔺 UP!"))
+                st.session_state.min_range = max(st.session_state.min_range, guess + 1)
+            else:
+                st.session_state.history.append((guess, "🔻 DOWN!"))
+                st.session_state.max_range = min(st.session_state.max_range, guess - 1)
+                
+            if st.session_state.attempts >= st.session_state.max_attempts and not st.session_state.game_over:
+                st.session_state.game_over = True
+                
+            st.rerun()
+
+# 게임 종료 후 메시지
+if st.session_state.game_over:
+    if st.session_state.history[-1][1] == "🎉 정답!":
+        st.success(f"축하합니다! 🎉 {st.session_state.attempts}번째 시도만에 정답({st.session_state.answer})을 맞췄습니다!")
+        st.balloons()
     else:
-        return "정답입니다!"
+        st.error(f"게임 오버! 😭 정답은 {st.session_state.answer}였습니다.")
+        st.snow()
+        
+    if st.button("🔄 다시 플레이하기", use_container_width=True):
+        reset_game()
+        st.rerun()
 
-# [FR-06] 게임 종료 판정 기능
-def check_game_over(attempts: int, max_attempts: int, is_correct: bool) -> bool:
-    """게임 종료 여부를 확인합니다. (정답 맞춤 또는 기회 소진)"""
-    return is_correct or attempts >= max_attempts
-
-def play_game(best_score: int | None = None) -> int | None:
-    """
-    단일 게임 세션을 실행합니다.
-    정답을 맞힌 시도 횟수를 반환하며, 실패하면 None을 반환합니다.
-    """
-    print("\n===== 업다운 게임 =====")
-    print("1~100 사이 숫자를 맞혀보세요.")
-    max_attempts = 5
-    print(f"기회는 총 {max_attempts}번입니다.")
-    
-    # [선택 기능 C] 최고 기록 표시
-    if best_score is not None:
-        print(f"최고 기록 : {best_score}회 만에 성공")
-    
-    answer = generate_answer()
-    attempts = 0
-    
-    # [선택 기능 A] 범위 표시를 위한 변수
-    min_range = 1
-    max_range = 100
-
-    while not check_game_over(attempts, max_attempts, False):
-        print(f"\n현재 범위 : {min_range} ~ {max_range}")
-        user_input = input("숫자 입력 : ")
-        
-        is_valid, guess = validate_input(user_input)
-        
-        # [FR-02] 잘못된 입력 시 기회 차감 없음
-        if not is_valid:
-            print("1~100 사이의 정수를 정확히 입력해주세요. (기회 차감 없음)")
-            continue
-            
-        attempts += 1
-        hint = judge_guess(guess, answer)
-        print(hint)
-        
-        # [FR-05] 게임 승리 처리
-        if guess == answer:
-            print("축하합니다!")
-            print(f"{attempts}번째 시도 만에 정답을 맞혔습니다.")
-            return attempts
-            
-        # [선택 기능 A] 범위 업데이트 로직
-        if guess < answer:
-            min_range = max(min_range, guess + 1)
-        elif guess > answer:
-            max_range = min(max_range, guess - 1)
-            
-        # [FR-04] 남은 기회 안내
-        print(f"남은 기회 : {max_attempts - attempts}회")
-        
-        # [FR-06] 게임 패배 처리
-        if check_game_over(attempts, max_attempts, False):
-            print("\n게임 오버!")
-            print(f"정답은 {answer}였습니다.")
-            return None
-
-def main():
-    best_score = None
-    
-    while True:
-        score = play_game(best_score)
-        
-        # [선택 기능 C] 최고 기록 갱신
-        if score is not None:
-            if best_score is None or score < best_score:
-                best_score = score
-        
-        # [선택 기능 B] 재시작 기능
-        while True:
-            restart = input("\n다시 플레이하시겠습니까? (Y/N) : ").strip().upper()
-            if restart in ['Y', 'N']:
-                break
-            print("Y 또는 N만 입력해주세요.")
-            
-        if restart == 'N':
-            print("게임을 종료합니다. 감사합니다!")
-            break
-
-if __name__ == "__main__":
-    main()
+# 히스토리 출력
+if st.session_state.history:
+    st.markdown("### 📝 기록")
+    for i, (g, result) in enumerate(reversed(st.session_state.history)):
+        idx = len(st.session_state.history) - i
+        color = "#2e7d32" if "정답" in result else ("#c62828" if "UP" in result else "#1565c0")
+        st.markdown(f'<div class="history-card"><strong>{idx}회차:</strong> 입력한 숫자 <b>{g}</b> ➔ <span style="color:{color}; font-weight:bold;">{result}</span></div>', unsafe_allow_html=True)
