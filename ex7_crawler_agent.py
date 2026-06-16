@@ -42,9 +42,8 @@ def get_target_urls(topic: str, count: int = 5):
     prompt = f"""
     당신은 웹 크롤러 오케스트레이터입니다.
     주제: "{topic}"
-    위 주제와 관련된 신뢰할 수 있는 뉴스 기사의 URL {count}개를 생성해주세요.
-    반드시 URL만 한 줄에 하나씩 출력하고 다른 설명은 적지 마세요.
-    (실제 존재하는 뉴스 포털이나 언론사의 형태를 띤 URL이어야 합니다.)
+    위 주제와 관련된 정보를 얻을 수 있는 실제 존재하는 유효한 웹사이트 또는 뉴스 카테고리 URL {count}개를 생성해주세요.
+    반드시 https:// 로 시작하는 URL만 한 줄에 하나씩 출력하고 다른 설명은 절대 적지 마세요.
     """
     response = llm_call(prompt, model="gpt-4o")
     
