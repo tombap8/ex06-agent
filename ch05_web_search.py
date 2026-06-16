@@ -15,6 +15,7 @@ async def llm_search_async(prompt: str, model: str = "gpt-4o") -> str:
     response = await async_client.responses.create(
         model = model,
         input = prompt,
+        # 웹 검색 기능을 사용하기 위해 tools 리스트에 web_search_preview 타입을 추가
         tools = [{"type": "web_search_preview"}],
     )
     return response.output_text
